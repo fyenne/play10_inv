@@ -27,7 +27,11 @@ def run_etl(start_date, end_date ,env):
     sql = 
     # -- select * from  dsc_dwd.dwd_wh_dsc_inventory_dtl_di 
     # -- where src = 'scale'
-    # -- and data_source in ('scale_hpi', 'scale_michelin', 'scale_fas', 'scale_bose')
+    and ou_code in (
+    'HPPXXWHWDS', 
+    'MICHETCTGS'
+    'COSTASHHTS',
+    'ZEBRASHALS')
     # -- and inc_day in ('20211124', '20211117', '20211110', '20211103', 
     # -- '20211027', '20211020', '20211013','20211006')
     # -- and usage_flag = '1'
@@ -35,6 +39,8 @@ def run_etl(start_date, end_date ,env):
     df = spark.sql(sql).select("*").toPandas()
     print("==================================read_table================================")
     print(df.head())
+
+
 
     for ou_code0 in df['ou_code'].unique():
         
@@ -46,25 +52,54 @@ def run_etl(start_date, end_date ,env):
             所有类型的qty都要加起来哦
             只选择有多个收货日期的货物
             """
-            
+            global code
+            df = df9
             df = df[df['ou_code'].astype(str) == ou_code]
+
+            def fifo_fefo(df, type):
+                if type == 'fifo':
+                    df['recived_date'] = pd.to_datetime(df['recived_date'])
+                    df['fifo_fefo'] = 'fifo'
+                elif type == 'fefo':
+                    df['recived_date'] = pd.to_datetime(df['expiration_date'])
+                    df['fifo_fefo'] = 'fefo'
+                else: 
+                    pass
+                return df 
+
             if ou_code == 'HPPXXWHWDS':
+                # hp wh
                 code = '(QH|27|QI)'
+                df = fifo_fefo(df, 'fifo')
+
             elif ou_code == 'MICHETCTGS':
+                # mich tc, rt,m  FEFO
+                df = fifo_fefo(df, 'fefo')
 
-            elif ou_code == '':
+            elif ou_code == 'COSTASHHTS':
+                # COSTASHHTS expiration_date 没有空值.
+                df1 = df[df['expiration_date'] == '4712-12-31 00:00:00'] # fifo
+                df2 = df[df['expiration_date'] != '4712-12-31 00:00:00'] # fefo
+                df1 = fifo_fefo(df1, 'fifo')
+                df2 = fifo_fefo(df2, 'fefo')
+                df = pd.concat([df1, df2], axis = 0)
 
-            df ['recived_date'] = pd.to_datetime(df['recived_date'])
+            elif ou_code == 'SIEMESUEPS':
+                pass
+            
+            
             df = df[['wms_company_name', 'wms_warehouse_id','sku_code', 'sku_name', 'sku_desc', 'location',\
                 'lock_codes', 'on_hand_qty', 'in_transit_qty','allocated_qty', 'shelf_days', 
-                'recived_date','usage_flag', 'inc_day']]
+                'recived_date','usage_flag', 'fifo_fefo','inc_day']]
             # qty = pd.Series(df.columns).str.extract('(.+qty)').dropna(axis = 0)
             # df['qty'] = df[qty[0]].sum(axis = 1).round(2)
             df['qty'] = df['on_hand_qty']
             
             # bose_inv.drop_duplicates(subset = ['sku_code', 'recived_date', 'lock_codes', 'inc_day', 'qty'])
             # 没有重复的 目前看....aaa
-            df = df.groupby(['recived_date', 'sku_code', 'lock_codes','inc_day', 'wms_warehouse_id'], dropna = False).agg(
+            df = df.groupby(
+                ['recived_date', 'sku_code', 'lock_codes','inc_day', 'wms_warehouse_id', 'fifo_fefo'], dropna = False
+                ).agg(
             {
                 'qty':sum,
                 'location': set
