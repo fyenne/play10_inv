@@ -5,15 +5,13 @@ import os
 import re
 import warnings
 warnings.filterwarnings("ignore")
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import argparse
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import * 
 from MergeDataFrameToTable import MergeDFToTable
 spark = SparkSession.builder.enableHiveSupport().getOrCreate() 
- 
 import sys 
-
 
 
 def run_etl(start_date, end_date ,env):
@@ -24,28 +22,39 @@ def run_etl(start_date, end_date ,env):
     """
     offline version
     """
-    sql = 
-    # -- select * from  dsc_dwd.dwd_wh_dsc_inventory_dtl_di 
-    # -- where src = 'scale'
+    def allsundays(year):
+        """
+        10年之内
+        """
+        return pd.date_range(start=str(year), end=str(year+10), 
+                         freq='W-FRI').strftime('%Y%m%d').tolist()
+
+    fridays = tuple([
+        i for i in list(
+            allsundays(2021)[allsundays(2021) < date.today().strftime('%Y%m%d')][-8:]
+            )
+        ])
+        # 8 周, 每个周五.
+    sql = """
+    select * from  dsc_dwd.dwd_wh_dsc_inventory_dtl_di 
+    where src = 'scale'
     and ou_code in (
     'HPPXXWHWDS', 
     'MICHETCTGS'
     'COSTASHHTS',
-    'ZEBRASHALS')
-    # -- and inc_day in ('20211124', '20211117', '20211110', '20211103', 
-    # -- '20211027', '20211020', '20211013','20211006')
-    # -- and usage_flag = '1'
+    'ZEBRASHALS'
+    )
+    and inc_day in """+ str(fridays) + """
+    and usage_flag = '1'
+    """
     print(sql)
+
     df = spark.sql(sql).select("*").toPandas()
     print("==================================read_table================================")
     print(df.head())
 
-
-
     for ou_code0 in df['ou_code'].unique():
         
-        
-
         def load_data(ou_code):
             """
             load bose data;
@@ -87,15 +96,12 @@ def run_etl(start_date, end_date ,env):
             elif ou_code == 'SIEMESUEPS':
                 pass
             
-            
             df = df[['wms_company_name', 'wms_warehouse_id','sku_code', 'sku_name', 'sku_desc', 'location',\
                 'lock_codes', 'on_hand_qty', 'in_transit_qty','allocated_qty', 'shelf_days', 
                 'recived_date','usage_flag', 'fifo_fefo','inc_day']]
-            # qty = pd.Series(df.columns).str.extract('(.+qty)').dropna(axis = 0)
-            # df['qty'] = df[qty[0]].sum(axis = 1).round(2)
             df['qty'] = df['on_hand_qty']
             
-            # bose_inv.drop_duplicates(subset = ['sku_code', 'recived_date', 'lock_codes', 'inc_day', 'qty'])
+            
             # 没有重复的 目前看....aaa
             df = df.groupby(
                 ['recived_date', 'sku_code', 'lock_codes','inc_day', 'wms_warehouse_id', 'fifo_fefo'], dropna = False
@@ -119,7 +125,6 @@ def run_etl(start_date, end_date ,env):
             return bose_inv
         
         bose_inv = load_data(ou_code0)
-        # for loop needed or use group by.
 
         df0 = pd.DataFrame()
         def snapshot():
