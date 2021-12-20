@@ -24,7 +24,7 @@ def run_etl(start_date, end_date ,env):
     """
     def allsundays(year):
         """
-        10年之内
+        10年之内 所有的周五 日期 in fomat of 20221230
         """
         return pd.date_range(start=str(year), end=str(year+10), 
                          freq='W-FRI').strftime('%Y%m%d').tolist()
@@ -34,15 +34,17 @@ def run_etl(start_date, end_date ,env):
             allsundays(2021)[allsundays(2021) < date.today().strftime('%Y%m%d')][-8:]
             )
         ])
-        # 8 周, 每个周五.
+        # 最近 8周, 每个周五.
+    
+    # 'ZEBRASHALS'
+    # 4 个站点. 
     sql = """
     select * from  dsc_dwd.dwd_wh_dsc_inventory_dtl_di 
     where src = 'scale'
     and ou_code in (
     'HPPXXWHWDS', 
-    'MICHETCTGS'
-    'COSTASHHTS',
-    'ZEBRASHALS'
+    'MICHETCTGS',
+    'COSTASHHTS'
     )
     and inc_day in """+ str(fridays) + """
     and usage_flag = '1'
@@ -52,6 +54,8 @@ def run_etl(start_date, end_date ,env):
     df = spark.sql(sql).select("*").toPandas()
     print("==================================read_table================================")
     print(df.head())
+
+    out_df = pd.DataFrame()
 
     for ou_code0 in df['ou_code'].unique():
         
@@ -104,7 +108,8 @@ def run_etl(start_date, end_date ,env):
             
             # 没有重复的 目前看....aaa
             df = df.groupby(
-                ['recived_date', 'sku_code', 'lock_codes','inc_day', 'wms_warehouse_id', 'fifo_fefo'], dropna = False
+                ['recived_date', 'sku_code', 'lock_codes','inc_day', 'wms_warehouse_id', 'fifo_fefo'],
+                dropna = False
                 ).agg(
             {
                 'qty':sum,
@@ -180,6 +185,7 @@ def run_etl(start_date, end_date ,env):
             return df_err
         
         df_err = err_part()
+
         def output(df_err, df0):
             dishes = list(df_err[(df_err['lag_mark'] != 'clear') \
                 & (df_err['change'] < 0)
@@ -214,9 +220,11 @@ def run_etl(start_date, end_date ,env):
 
         bose_err_list = ou_level_lock_codes(code)
         bose_definite_wrong = check(bose_err_list, df0)
-        
+        out_df = pd.concat([out_df, bose_definite_wrong], axis = 0)
     # .to_csv('./data_up/bose_fifo.csv', index = None, encoding = 'utf_8_sig')
+    print("===============================dfout_prepared=================================")
 
+    print(out_df.head(15), '\t', out_df.info())
 
     """
     merge table preparation:
