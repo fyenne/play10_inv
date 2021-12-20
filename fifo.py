@@ -12,7 +12,27 @@ from pyspark.sql.functions import *
 from MergeDataFrameToTable import MergeDFToTable
 spark = SparkSession.builder.enableHiveSupport().getOrCreate() 
 import sys 
-from tqdm import tqdm
+
+# def install(package):
+#     subprocess.check_call(["pip", "install", package])
+
+# import pip
+
+# def install(package):
+#     if hasattr(pip, 'main'):
+#         pip.main(['install', package])
+#     else:
+#         pip._internal.main(['install', package])
+
+# install('tqdm')
+
+# %%time
+df = pd.read_csv('./data_down/inv_1220.csv', sep='\001')
+df.columns = [re.sub('\w+\.', '', i) for i in list(df.columns)]
+df = df.dropna(how = 'all', axis =1)
+time_cols = pd.Series(df.columns)[pd.Series(df.columns).str.lower().str.findall('date|time').apply(len)>0]
+df[time_cols] = df[time_cols].apply(lambda x: x.str.slice(0,10))
+df9 = df
 
 
 def run_etl(env):
@@ -23,18 +43,18 @@ def run_etl(env):
     """
     offline version
     """
+    
     def allsundays(year):
         """
-        10年之内 所有的周五 日期 in fomat of 20221230
+        十年, 
         """
-        return pd.date_range(start=str(year), end=str(year+10), 
-                         freq='W-FRI').strftime('%Y%m%d').tolist()
+        return pd.Series(pd.date_range(start=str(year), end=str(year+10), 
+                            freq='W-FRI').strftime('%Y%m%d'))
 
     fridays = tuple([
         i for i in list(
-            allsundays(2021)[allsundays(2021) < date.today().strftime('%Y%m%d')][-8:]
-            ) 
-        ])
+            allsundays(2021)[allsundays(2021) < date.today().strftime('%Y%m%d')][-8:])])
+    
         # 最近 8周, 每个周五. 这里直接用today是可以的, 因为只会找不等于的.,
     # 4 个站点. 
     sql = """
@@ -51,101 +71,108 @@ def run_etl(env):
     print(sql)
 
     df = spark.sql(sql).select("*").toPandas()
+    df = df.dropna(how = 'all', axis =1)
+    time_cols = pd.Series(df.columns)[
+        pd.Series(df.columns).str.lower().str.findall('date|time').apply(len)>0
+        ]
+    df[time_cols] = df[time_cols].apply(lambda x: x.str.slice(0,10))
     df9 = df
+    
     print("==================================read_table================================")
-    print(df9.head())
+    print(df9.tail())
 
     """
     global vars
     """
-    out_df = pd.DataFrame()
     code = ''
-    scan_len = len(df['inc_day'].unique()) 
+    df0 = pd.DataFrame()
+    scan_len = len(df['inc_day'].unique())  
 
-    """
-    functions
-    """
     def load_data(ou_code):
-            """
-            load bose data;
-            所有类型的qty都要加起来哦
-            只选择有多个收货日期的货物
-            """
-            global code 
-            
-            def fifo_fefo(df, type):
-                if type == 'fifo':
-                    df['recived_date'] = pd.to_datetime(df['recived_date'])
-                    df['fifo_fefo'] = 'fifo'
-                elif type == 'fefo':
-                    df['recived_date'] = pd.to_datetime(df['expiration_date'].str.slice(0,10))
-                    df['fifo_fefo'] = 'fefo'
-                else: 
-                    pass
-                return df 
+        """
+        load bose data;
+        所有类型的qty都要加起来哦
+        只选择有多个收货日期的货物
+        """
+        global code,df
+        df = df9
+        df = df[df['ou_code'].astype(str) == ou_code]
 
-            if ou_code == 'HPPXXWHWDS':
-                # hp wh
-                code = '(QH|27|QI)'
-                df = fifo_fefo(df, 'fifo')
-
-            elif ou_code == 'MICHETCTGS':
-                df = df[df['expiration_date'] != '4712-12-31']
-                # mich tc, rt,m  FEFO
-                df = fifo_fefo(df, 'fefo')
-
-            elif ou_code == 'COSTASHHTS':
-                # COSTASHHTS expiration_date 没有空值.
-                df1 = df[df['expiration_date'] == '4712-12-31'] # fifo
-                df2 = df[df['expiration_date'] != '4712-12-31'] # fefo
-                df1 = fifo_fefo(df1, 'fifo')
-                df2 = fifo_fefo(df2, 'fefo')
-                df = pd.concat([df1, df2], axis = 0)
-
-            elif ou_code == 'SIEMESUEPS':
+        def fifo_fefo(df, type):
+            if type == 'fifo':
+                df['recived_date'] = pd.to_datetime(df['recived_date'])
+                df['fifo_fefo'] = 'fifo'
+            elif type == 'fefo':
+                df['recived_date'] = pd.to_datetime(df['expiration_date'].str.slice(0,10))
+                df['fifo_fefo'] = 'fefo'
+            else: 
                 pass
+            return df 
 
-            # print(code)
-            # print("===============================this_code: %s================================="%code)
-            
-            
-            df = df[['wms_company_name', 'wms_warehouse_id','sku_code', 'sku_name', 'sku_desc', 'location',\
-                'lock_codes', 'on_hand_qty', 'in_transit_qty','allocated_qty', 'shelf_days', 
-                'recived_date','usage_flag', 'fifo_fefo','inc_day']]
-            df['qty'] = df['on_hand_qty']
-            
-            
-            # 没有重复的 目前看....aaa
-            df = df.groupby(
-                ['recived_date', 'sku_code', 'lock_codes','inc_day', 'wms_warehouse_id', 'fifo_fefo'],
-                dropna = False
-                ).agg(
-            {
-                'qty':sum,
-                'location': set
-            }
-            ).sort_values(['sku_code', 'recived_date']).reset_index()
-            # 只选择有多个收货日期的货物
-            filter0 = df.groupby(['sku_code'])['recived_date'].agg(
-            {
-                set
-            }
-                ).reset_index()
+        if ou_code == 'HPPXXWHWDS':
+            # hp wh
+            code = '(QH|27|QI)'
+            df = fifo_fefo(df, 'fifo')
 
-            filter0 = pd.DataFrame(filter0[filter0['set'].apply(len)> 1]['sku_code'].drop_duplicates())
-            bose_inv = filter0.merge(df, on = ['sku_code'], how = 'inner')\
-                .sort_values(['recived_date','sku_code', 'inc_day'])
-            bose_inv['ou_code'] = ou_code
-            
-            return bose_inv
- 
+        elif ou_code == 'MICHETCTGS':
+            df = df[df['expiration_date'] != '4712-12-31']
+            # mich tc, rt,m  FEFO
+            code = '(BLOCKED_TH|RETURN)'
+            df = fifo_fefo(df, 'fefo')
+
+        elif ou_code == 'COSTASHHTS':
+            # COSTASHHTS expiration_date 没有空值.
+            df1 = df[df['expiration_date'] == '4712-12-31'] # fifo
+            df2 = df[df['expiration_date'] != '4712-12-31'] # fefo
+            df1 = fifo_fefo(df1, 'fifo')
+            df2 = fifo_fefo(df2, 'fefo')
+            df = pd.concat([df1, df2], axis = 0)
+            code = '(blocked)'
+
+        elif ou_code == 'SIEMESUEPS':
+            pass
+
+        # print(code)
+        
+        
+        df = df[['wms_company_name', 'wms_warehouse_id','sku_code', 'sku_name', 'sku_desc', 'location',\
+            'lock_codes', 'on_hand_qty', 'in_transit_qty','allocated_qty', 'shelf_days', 
+            'recived_date','usage_flag', 'fifo_fefo','inc_day']]
+        df['qty'] = df['on_hand_qty']
+        
+        
+        # 没有重复的 目前看....aaa
+        df = df.groupby(
+            ['recived_date', 'sku_code', 'lock_codes','inc_day', 'wms_warehouse_id', 'fifo_fefo'],
+            dropna = False
+            ).agg(
+        {
+            'qty':sum,
+            'location': set
+        }
+        ).sort_values(['sku_code', 'recived_date']).reset_index()
+        # 只选择有多个收货日期的货物
+        filter0 = df.groupby(['sku_code'])['recived_date'].agg(
+        {
+            set
+        }
+            ).reset_index()
+
+        filter0 = pd.DataFrame(filter0[filter0['set'].apply(len)> 1]['sku_code'].drop_duplicates())
+        bose_inv = filter0.merge(df, on = ['sku_code'], how = 'inner')\
+            .sort_values(['recived_date','sku_code', 'inc_day'])
+        bose_inv['ou_code'] = ou_code
+        
+        return bose_inv
+
+
     def snapshot():
         """
         pivot table. inc_day 快照 作为 cols
         添加标记.
         """
         global df0, bose_inv
-        for i in tqdm(bose_inv['sku_code'].unique()):
+        for i in bose_inv['sku_code'].unique():
             df_out = bose_inv[bose_inv['sku_code'] == i]\
                 .pivot_table(columns=['inc_day'], index = 'recived_date', values=['qty']).reset_index()
             df_out['sku_code'] = i
@@ -172,10 +199,10 @@ def run_etl(env):
 
         # may lock
         df0['mark'] = df0['mark'].where(df0.iloc[:, 0:scan_len].fillna(0).nunique(axis = 1) > 1, 'may_lock')
-    
+        
     def err_part():
         """
-        shift, 计算变化.????
+        findout who are the naught peach.
         err 中干掉了 new 干掉了maylock 
         """
         df_err = df0[df0['mark'] != 'new']
@@ -190,11 +217,7 @@ def run_etl(env):
         shift['lag_mark'] = shift['lag_mark'].where(~shift['lag_mark'].isna(), 'clear')
         df_err = pd.concat([df_err, shift], axis = 1)
         return df_err
-
     def output(df_err, df0):
-        """
-        找到谁是item wrong
-        """
         dishes = list(df_err[(df_err['lag_mark'] != 'clear') \
             & (df_err['change'] < 0)
             & (df_err['change'] != df_err['lag_change'])]['sku'].unique())
@@ -202,8 +225,8 @@ def run_etl(env):
 
     def check(sku, df0):
         a = df0[df0['sku'].isin(sku)].sort_values(['sku','received_date'])
-        return a
-    
+        return a 
+
     def ou_level_lock_codes(lock_code_to_eliminate):
         """
         正则. lock_code 需要被排除的, 依赖view表格. 
@@ -221,42 +244,53 @@ def run_etl(env):
         bose_err_list = list(bose_err_list.intersection(bose_err_list2))
         bose_err_list = list(set(bose_err_list))
         return bose_err_list
- 
 
-    """
-    loop on
-    """
-    print("===============================loop_on=================================")
+    df.columns
+    out_df = pd.DataFrame()
+    for ou_code0 in df['ou_code'].unique():
 
-    for ou_code0 in tqdm(df['ou_code'].unique()):
-        df = df9
-        df = df[df['ou_code'].astype(str) == ou_code0]
         bose_inv = load_data(ou_code0)
+        
+        print('{note:=>50}'.format(note=ou_code0) + '{note:=>50}'.format(note=''))
+        print("===============================this_code: %s================================="%code)
+        print(bose_inv['ou_code'].unique())
+        print("===============================this_code: %s================================="%bose_inv['ou_code'].unique())
 
-        print('{note:=>50}'.format(note=code) + '{note:=>50}'.format(note=''))
-        # print(code)
-        print('\t')
-        print('{note:=>50}'.format(note= bose_inv['ou_code'].unique()) + '{note:=>50}'.format(note=''))
 
         df0 = pd.DataFrame()
         snapshot()
         df_err = err_part()
-        view = output(df_err, df0)
 
+        view = output(df_err, df0)
         bose_err_list = ou_level_lock_codes(code)
         bose_definite_wrong = check(bose_err_list, df0)
         out_df = pd.concat([out_df, bose_definite_wrong], axis = 0)
-    # .to_csv('./data_up/bose_fifo.csv', index = None, encoding = 'utf_8_sig')
+    
+
+    out_df['start_week'] = out_df.columns[0]
+    out_df.columns = [str(j) + '_' + str(i) for i,j in enumerate(np.repeat('week', scan_len))] + [
+        'received_date','sku','mark','lock_codes',
+        'wms_warehouse_id','fifo_fefo','location','ou_code'
+    ]
+    out_df.columns
+ 
+
+
+
+
+
+
     print("===============================dfout_prepared=================================")
 
     print(out_df.head(15), '\t', out_df.info())
+
 
     """
     merge table preparation:
     """
    
 
-    # merge_table = "dsc_dws.dws_dsc_huawei_operation_sum_df"
+    merge_table = "dsc_dws.dws_dsc_huaweiss_operation_sum_df"
     if env == 'dev':
         merge_table = 'tmp_' + merge_table
     else:
@@ -293,3 +327,4 @@ if __name__ == '__main__':
     main()
 
     
+# %%
