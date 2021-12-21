@@ -43,3 +43,67 @@ STORED AS INPUTFORMAT
 OUTPUTFORMAT
 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'
 
+
+
+
+
+inbound_header	HK	FRED1M041S	FRED1M041S·Fred Perry	scale	2021-12-17	2021-12-09	1
+inbound_header	TSC	FUJIXSYXXS	FUJIXSYXXS·Fuji	scale	2021-12-03	2021-09-23	1
+inbound_header	CR	RAZERSHSJS	RAZERSHSJS·Razer	scale	2021-07-12	-	1
+inbound_line	CR	DIADOXMNSS	DIADOXMNSS·Diadora	scale	2021-12-20	2021-12-17	1
+inbound_line	HK	FRED1M041S	FRED1M041S·Fred Perry	scale	2021-12-17	2021-12-09	1
+inbound_line	TSC	FUJIXSYXXS	FUJIXSYXXS·Fuji	scale	2021-12-03	2021-09-23	1
+inbound_line	CR	RAZERSHSJS	RAZERSHSJS·Razer	scale	2021-07-12	-	1
+inventory	CM	APPLESHWHW	APPLESHWHW·Apple	scale	2021-12-17	-	1
+inventory	TSC	BOSEXSHKQS	BOSEXSHKQS·Bose	scale	2021-12-17	-	1
+inventory	CR	DIADOXMNSS	DIADOXMNSS·Diadora	scale	2021-12-17	-	1
+inventory	CR	FERRECDXXS	FERRECDXXS·Ferrero	scale	2021-12-17	-	1
+inventory	HK	FRED1M041S	FRED1M041S·Fred Perry	scale	2021-12-17	-	1
+inventory	TSC	FUJIXSYXXS	FUJIXSYXXS·Fuji	scale	2021-12-17	-	1
+inventory	TSC	HPPXXSHMGS	HPPXXSHMGS·HP Supply Chain	scale	2021-12-17	-	1
+inventory	TSC	HPPXXWHWDS	HPPXXWHWDS·HP Supply Chain	scale	2021-12-17	-	1
+inventory	EM	HUSQVSHMFS	HUSQVSHMFS·Husqvarna	scale	2021-12-17	-	1
+inventory	Auto	MICHESHXCS	MICHESHXCS·Michelin	scale	2021-12-17	-	1
+inventory	Auto	MICHETCTGS	MICHETCTGS·Michelin	scale	2021-12-17	-	1
+inventory	CR	PERNOSHFSS	PERNOSHFSS·Pernod Ricard	scale	2021-12-17	-	1
+inventory	CR	RAZERSHSJS	RAZERSHSJS·Razer	scale	2021-12-17	-	1
+inventory	HK	REVL1M111S	REVL1M111S·Revlon (Hong Kong)	scale	2021-12-17	-	1
+inventory	LSH	SQUIBSHHTS	SQUIBSHHTS·Squibb	scale	2021-12-17	-	1
+inventory	TSC	ZEBRASHALS	ZEBRASHALS·Zebra	scale	2021-12-17	-	1
+outbound_header	TSC	FUJIXSYXXS	FUJIXSYXXS·Fuji	scale	2021-12-03	2021-12-02	1
+outbound_header	CR	RAZERSHSJS	RAZERSHSJS·Razer	scale	2021-08-16	2021-07-22	1
+working_hours	CM	APPLESHWHW	APPLESHWHW·Apple	scale	2021-12-21	-	1
+working_hours	TSC	BOSEXSHKQS	BOSEXSHKQS·Bose	scale	2021-12-21	-	1
+working_hours	CR	DIADOXMNSS	DIADOXMNSS·Diadora	scale	2021-12-21	-	1
+working_hours	CR	FERRECDXXS	FERRECDXXS·Ferrero	scale	2021-12-21	-	1
+working_hours	HK	FRED1M041S	FRED1M041S·Fred Perry	scale	2021-12-21	-	1
+working_hours	TSC	FUJIXSYXXS	FUJIXSYXXS·Fuji	scale	2021-12-21	-	1
+working_hours	TSC	HPPXXSHMGS	HPPXXSHMGS·HP Supply Chain	scale	2021-12-21	-	1
+working_hours	TSC	HPPXXWHWDS	HPPXXWHWDS·HP Supply Chain	scale	2021-12-21	-	1
+working_hours	EM	HUSQVSHMFS	HUSQVSHMFS·Husqvarna	scale	2021-12-21	-	1
+working_hours	Auto	MICHESHXCS	MICHESHXCS·Michelin	scale	2021-12-21	-	1
+working_hours	Auto	MICHETCTGS	MICHETCTGS·Michelin	scale	2021-12-21	-	1
+working_hours	CR	PERNOSHFSS	PERNOSHFSS·Pernod Ricard	scale	2021-12-21	-	1
+working_hours	CR	RAZERSHSJS	RAZERSHSJS·Razer	scale	-	-	1
+working_hours	HK	REVL1M111S	REVL1M111S·Revlon (Hong Kong)	scale	2021-12-21	-	1
+working_hours	LSH	SQUIBSHHTS	SQUIBSHHTS·Squibb	scale	2021-12-21	-	1
+working_hours	TSC	ZEBRASHALS	ZEBRASHALS·Zebra	scale	2021-12-21	-	1
+
+
+
+ 
+	'DIADOXMNSS',  
+	'APPLESHWHW',
+	'BOSEXSHKQS', 
+	'FERRECDXXS',
+	'FRED1M041S',
+	'FUJIXSYXXS',
+	'HPPXXSHMGS',
+	'HPPXXWHWDS',
+	'HUSQVSHMFS',
+	'MICHESHXCS',
+	'MICHETCTGS',
+	'PERNOSHFSS', 
+	'REVL1M111S',
+	'SQUIBSHHTS',
+	'ZEBRASHALS'
