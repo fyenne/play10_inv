@@ -27,15 +27,15 @@ import sys
 # install('tqdm')
 
 # %%time
-df = pd.read_csv('./data_down/inv_1220.csv', sep='\001')
-df.columns = [re.sub('\w+\.', '', i) for i in list(df.columns)]
-df = df.dropna(how = 'all', axis =1)
-time_cols = pd.Series(df.columns)[pd.Series(df.columns).str.lower().str.findall('date|time').apply(len)>0]
-df[time_cols] = df[time_cols].apply(lambda x: x.str.slice(0,10))
-df9 = df
+# df = pd.read_csv('./data_down/inv_1220.csv', sep='\001')
+# df.columns = [re.sub('\w+\.', '', i) for i in list(df.columns)]
+# df = df.dropna(how = 'all', axis =1)
+# time_cols = pd.Series(df.columns)[pd.Series(df.columns).str.lower().str.findall('date|time').apply(len)>0]
+# df[time_cols] = df[time_cols].apply(lambda x: x.str.slice(0,10))
+# df9 = df
 
 
-def run_etl(env):
+def run_etl(env, weeksize):
     # path = './cxm/'
     print("python version here:", sys.version, '\t') 
     print("=================================sysVersion================================")
@@ -53,7 +53,8 @@ def run_etl(env):
 
     fridays = tuple([
         i for i in list(
-            allsundays(2021)[allsundays(2021) < date.today().strftime('%Y%m%d')][-8:])])
+            allsundays(2021)[allsundays(2021) < date.today().strftime('%Y%m%d')][-weeksize:])])
+    print("=================================weeksize==%s================================"%weeksize)
     
         # 最近 8周, 每个周五. 这里直接用today是可以的, 因为只会找不等于的.,
     # 4 个站点. 
@@ -79,7 +80,7 @@ def run_etl(env):
     df9 = df
     
     print("==================================read_table================================")
-    print(df9.tail())
+    print(df9.info())
 
     """
     global vars
@@ -142,12 +143,15 @@ def run_etl(env):
         
         
         # 没有重复的 目前看....aaa
+        print("===============================on_hand_qty--%s================================="%df['qty'].max())
+        print(df['on_hand_qty'].describe())
+
         df = df.groupby(
             ['recived_date', 'sku_code', 'lock_codes','inc_day', 'wms_warehouse_id', 'fifo_fefo'],
-            dropna = False
+            # dropna = False
             ).agg(
         {
-            'qty':sum,
+            'qty':'sum',
             'location': set
         }
         ).sort_values(['sku_code', 'recived_date']).reset_index()
@@ -165,13 +169,13 @@ def run_etl(env):
         
         return bose_inv
 
-
     def snapshot():
         """
         pivot table. inc_day 快照 作为 cols
         添加标记.
         """
         global df0, bose_inv
+        print('snapshot_begin======\n', bose_inv.info(), '======\n')
         for i in bose_inv['sku_code'].unique():
             df_out = bose_inv[bose_inv['sku_code'] == i]\
                 .pivot_table(columns=['inc_day'], index = 'recived_date', values=['qty']).reset_index()
@@ -199,7 +203,7 @@ def run_etl(env):
 
         # may lock
         df0['mark'] = df0['mark'].where(df0.iloc[:, 0:scan_len].fillna(0).nunique(axis = 1) > 1, 'may_lock')
-        
+    print("===============================mid_function_check=================================")
     def err_part():
         """
         findout who are the naught peach.
@@ -210,6 +214,9 @@ def run_etl(env):
         # df_err['mark'] = df_err['mark'].where(df_err.iloc[:, 0:8].fillna(0).nunique(axis = 1) > 1, 'may_lock')
         # 干掉了maylock
         df_err = df_err[df_err['mark'] != 'may_lock'].sort_values(['sku', 'received_date'])
+    
+        print("===============================scan_len_err_function--%s================================="%scan_len)
+        print(df_err.iloc[:,0:scan_len])
         df_err['change'] = df_err.iloc[:,0:scan_len].diff(axis = 1).sum(axis = 1)
         shift = df_err.groupby(['sku', 'wms_warehouse_id']).shift(1) 
         shift = shift[['mark','change']]
@@ -244,22 +251,30 @@ def run_etl(env):
         bose_err_list = list(bose_err_list.intersection(bose_err_list2))
         bose_err_list = list(set(bose_err_list))
         return bose_err_list
+    
+    
+    def printt(df):
+        print('{note:=>50}'.format(note="shape") + '{note:=>50}'.format(note=df.shape))
+        print(df.info())
 
-    df.columns
+    # df.columns
     out_df = pd.DataFrame()
-    for ou_code0 in df['ou_code'].unique():
+    for ou_code0 in df9['ou_code'].unique():
 
         bose_inv = load_data(ou_code0)
-        
+        print(bose_inv.info())
         print('{note:=>50}'.format(note=ou_code0) + '{note:=>50}'.format(note=''))
-        print("===============================this_code: %s================================="%code)
-        print(bose_inv['ou_code'].unique())
-        print("===============================this_code: %s================================="%bose_inv['ou_code'].unique())
+        
+        
 
 
         df0 = pd.DataFrame()
         snapshot()
+        print('{note:=>50}'.format(note="df0.shape") + '{note:=>50}'.format(note=df0.shape))
+        print(df0.info())
+
         df_err = err_part()
+        printt(df_err)
 
         view = output(df_err, df0)
         bose_err_list = ou_level_lock_codes(code)
@@ -270,27 +285,35 @@ def run_etl(env):
     out_df['start_week'] = out_df.columns[0]
     out_df.columns = [str(j) + '_' + str(i) for i,j in enumerate(np.repeat('week', scan_len))] + [
         'received_date','sku','mark','lock_codes',
-        'wms_warehouse_id','fifo_fefo','location','ou_code'
+        'wms_warehouse_id','fifo_fefo','location','ou_code', 'start_of_week'
     ]
+    out_df['inc_day'] = df9['inc_day'].max()
+
     out_df.columns
  
-
-
-
-
-
 
     print("===============================dfout_prepared=================================")
 
     print(out_df.head(15), '\t', out_df.info())
+    df = out_df
 
+
+    """
+    to bdp
+    """
+    # pd to spark table
+    spark_df = spark.createDataFrame(df)
+    # spark table as view, aka in to spark env. able to be selected or run by spark sql in the following part.
+    spark_df.createOrReplaceTempView("df")
+    # 
+    print(env)
 
     """
     merge table preparation:
     """
    
 
-    merge_table = "dsc_dws.dws_dsc_huaweiss_operation_sum_df"
+    merge_table = "tmp_dsc_dws.dws_dsc_wh_fifo_alert_wi"
     if env == 'dev':
         merge_table = 'tmp_' + merge_table
     else:
@@ -299,16 +322,15 @@ def run_etl(env):
     print(merge_table)
     
     inc_df = spark.sql("""select * from df""")
-    # print("===============================merge_table--%s================================="%merge_table)
-    # # merge_table = "tmp_dsc_dws.dws_dsc_huawei_operation_sum_df"
-    # # print(merge_table)
-    # print('{note:=>50}'.format(note=merge_table) + '{note:=>50}'.format(note=''))
+    print("===============================merge_table--%s================================="%merge_table)
+    
+    print('{note:=>50}'.format(note=merge_table) + '{note:=>50}'.format(note=''))
 
-    # spark.sql("""set spark.hadoop.hive.exec.dynamic.partition.mode=nonstrict""")
-    # # (table_name, df, pk_cols, order_cols, partition_cols=None):
-    # merge_data = MergeDFToTable(merge_table, inc_df, \
-    #     "ou, update_date, inc_day", "inc_day", partition_cols="inc_day")
-    # merge_data.merge()
+    spark.sql("""set spark.hadoop.hive.exec.dynamic.partition.mode=nonstrict""")
+    # (table_name, df, pk_cols, order_cols, partition_cols=None):
+    merge_data = MergeDFToTable(merge_table, inc_df, \
+        "received_date, sku, ou_code, inc_day", "inc_day", partition_cols="inc_day")
+    merge_data.merge()
 
 
 
@@ -316,10 +338,12 @@ def main():
     args = argparse.ArgumentParser() 
 
     args.add_argument("--env", help="dev environment or prod environment", default="dev", nargs="*")
+    args.add_argument("--weeksize", help="how many weeks are we scanning", default=8, nargs="*")
 
     args_parse = args.parse_args() 
     env = args_parse.env[0]
- 
+    weeksize = args_parse.env[0]
+    
     run_etl(env)
 
     
