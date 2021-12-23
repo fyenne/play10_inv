@@ -107,3 +107,28 @@ working_hours	TSC	ZEBRASHALS	ZEBRASHALS·Zebra	scale	2021-12-21	-	1
 	'REVL1M111S',
 	'SQUIBSHHTS',
 	'ZEBRASHALS'
+
+
+
+
+
+	
+select 
+ou_code,
+wms_warehouse_id,
+sku,
+case when fifo_fefo = 'fifo'
+then 'received_date'
+else 'expired_date' 
+end as date_type,
+min(received_date) as remained_sku_date,
+max(received_date) as distributed_sku_date,
+array_agg(location) as location ,
+min(start_of_week) as min_date
+from  tmp_dsc_dws.dws_dsc_wh_fifo_alert_wi
+where mark != 'clear'
+group by 
+sku, ou_code, fifo_fefo, wms_warehouse_id
+order by 	
+sku, ou_code
+ 

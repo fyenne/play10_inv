@@ -38,7 +38,7 @@ import sys
 def run_etl(env, weeksize, day_of_week):
     # path = './cxm/' 
     print("python version here:", sys.version, '\t') 
-    print("=================================sysVersion================================")
+    print("=================================sysVersion%s================================"%env)
     print("list dir", os.listdir())
     """
     offline version
@@ -340,20 +340,79 @@ def run_etl(env, weeksize, day_of_week):
         'wms_warehouse_id','fifo_fefo','location','ou_code', 'start_of_week'
     ]
     out_df['inc_day'] = df9['inc_day'].max()
+    out_df['location'] = [','.join(i) for i in out_df['location'] ]
+    out_df['received_date'] = out_df['received_date'].astype(str)
+
 
     out_df.columns
  
 
     print("===============================dfout_prepared=================================")
 
-    print(out_df.head(15), '\t', out_df.info())
-    df = out_df
+    print(out_df.columns, '\t', out_df.info())
+    df = pd.DataFrame(out_df)
+    df = df[['week_0',
+            'week_1',
+            'week_2',
+            'week_3',
+            'week_4',
+            'week_5',
+            'week_6',
+            'week_7',
+            'received_date',
+            'sku',
+            'mark',
+            'lock_codes',
+            'wms_warehouse_id',
+            'fifo_fefo',
+            'location',
+            'ou_code',
+            'start_of_week',
+            'inc_day',]]
+
+    df[['week_0',
+            'week_1',
+            'week_2',
+            'week_3',
+            'week_4',
+            'week_5',
+            'week_6',
+            'week_7',]] = df[['week_0',
+            'week_1',
+            'week_2',
+            'week_3',
+            'week_4',
+            'week_5',
+            'week_6',
+            'week_7',]].astype(float)
+    df[['received_date',
+            'sku',
+            'mark',
+            'lock_codes',
+            'wms_warehouse_id',
+            'fifo_fefo',
+            'location',
+            'ou_code',
+            'start_of_week',
+            'inc_day',]] = df[['received_date',
+            'sku',
+            'mark',
+            'lock_codes',
+            'wms_warehouse_id',
+            'fifo_fefo',
+            'location',
+            'ou_code',
+            'start_of_week',
+            'inc_day',]].astype(str)
+
+        
 
 
     """
     to bdp
     """
     # pd to spark table
+    print('===============================0=================================')
     spark_df = spark.createDataFrame(df)
     # spark table as view, aka in to spark env. able to be selected or run by spark sql in the following part.
     spark_df.createOrReplaceTempView("df")
@@ -365,9 +424,9 @@ def run_etl(env, weeksize, day_of_week):
     """
    
 
-    merge_table = "dsc_dws.dws_dsc_wh_fifo_alert_wi"
+    merge_table = "dm_dsc_ads.ads_dsc_wh_fifo_alert_wi"
     if env == 'dev':
-        merge_table = 'tmp_' + merge_table
+        merge_table = 'tmp_dsc_dws.dws_dsc_wh_fifo_alert_wi'
     else:
         pass
     print('看一下merge_table from john')
@@ -406,3 +465,41 @@ if __name__ == '__main__':
 
     
 # %%
+# 'week_0',              954 non-null float64
+# 'week_1',              954 non-null float64
+# 'week_2',              954 non-null float64
+# 'week_3',              954 non-null float64
+# 'week_4',              954 non-null float64
+# 'week_5',              954 non-null float64
+# 'week_6',              954 non-null float64
+# 'week_7',              954 non-null float64
+# 'received_date',       954 non-null object
+# 'sku',                 954 non-null object
+# 'mark',                954 non-null object
+# 'lock_codes',          954 non-null object
+# 'wms_warehouse_id',    954 non-null object
+# 'fifo_fefo',           954 non-null object
+# 'location',            954 non-null object
+# 'ou_code',             954 non-null object
+# 'start_of_week',       954 non-null object
+# 'inc_day',             954 non-null object
+
+
+
+# week_0       double
+# week_1       double
+# week_2       double
+# week_3       double
+# week_4       double
+# week_5       double
+# week_6       double
+# week_7       double
+# received_date        string
+# sku      string
+# mark         string
+# lock_codes       string
+# wms_warehouse_id         string
+# fifo_fefo        string
+# location         string
+# ou_code      string
+# start_of_week        string
