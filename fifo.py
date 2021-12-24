@@ -93,6 +93,7 @@ def run_etl(env, weeksize, day_of_week):
     code = ''
     df0 = pd.DataFrame()
     scan_len = len(df['inc_day'].unique())  # 8
+    print(scan_len)
 
     def load_data(ou_code):
         """
@@ -195,7 +196,8 @@ def run_etl(env, weeksize, day_of_week):
         except:
             pass
         print("snap_df0_column before in snap", df0.columns, "len of df0 in snap", (df0.shape))
-        
+        df0 = df0.reset_index(drop = True) # 4 
+        df0 = pd.DataFrame(np.zeros([3, 4]))
         """
         添加缺失列
         """
@@ -204,11 +206,15 @@ def run_etl(env, weeksize, day_of_week):
             df0.columns = list(df0.columns[0:scan_len]) + ['received_date','sku']
             print("normal process in snap::%s"%str(df0.shape))
         else:
-            pass
-            # print("auto fill enabled , ncol is: %s" %(10 - len(df0.columns)))
-            # df_zero = pd.DataFrame(np.zeros([df0.shape[0], (10 - len(df0.columns))]))
-            # df0 = pd.concat([df_zero, df0], axis = 1)
-            # df0.columns = list(df0.columns[0:(scan_len)]) + ['received_date','sku']
+            # pass
+            print("auto fill enabled , ncol is: %s" %(10 - len(df0.columns)))
+            somelen = 10 - len(df0.columns)
+            df_zero = pd.DataFrame(np.zeros([df0.shape[0], somelen]))
+            df0 = pd.concat([df_zero, df0], axis = 1)
+            df0.columns = list(
+                np.repeat(0, (somelen -1))
+                ) + list(df0.columns[0:(scan_len)]) + ['received_date','sku']
+
         df0.head()
         df0 = df0.sort_values(['sku', 'received_date'])
         df0['mark'] = 0
