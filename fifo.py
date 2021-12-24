@@ -40,6 +40,7 @@ def run_etl(env, weeksize, day_of_week):
     print("python version here:", sys.version, '\t') 
     print("=================================sysVersion%s================================"%env)
     print("list dir", os.listdir())
+    print(day_of_week, "day_of_week")
     """
     offline version
     """
@@ -93,7 +94,8 @@ def run_etl(env, weeksize, day_of_week):
     code = ''
     df0 = pd.DataFrame()
     scan_len = len(df['inc_day'].unique())  # 8
-    print(scan_len)
+    somelen = 8 - scan_len
+    print([scan_len,somelen])
 
     def load_data(ou_code):
         """
@@ -156,13 +158,14 @@ def run_etl(env, weeksize, day_of_week):
         print("===============================oucode :: %s================================="%df['ou_code'].unique())
         print(df['on_hand_qty'].describe())
 
-        df = df.groupby(
+        df = df.sort_values(['sku_code', 'recived_date']).groupby(
             ['recived_date', 'sku_code', 'lock_codes','inc_day', 'wms_warehouse_id', 'fifo_fefo'],
             # dropna = False
             ).agg(
         {
             'qty':'sum',
             'location': set
+            # ? 这里如果group by location德华会有问题, 列数,miasjdijaisjd
         }
         ).sort_values(['sku_code', 'recived_date']).reset_index()
         # 只选择有多个收货日期的货物
@@ -197,7 +200,7 @@ def run_etl(env, weeksize, day_of_week):
             pass
         print("snap_df0_column before in snap", df0.columns, "len of df0 in snap", (df0.shape))
         df0 = df0.reset_index(drop = True) # 4 
-        df0 = pd.DataFrame(np.zeros([3, 4]))
+        # df0 = pd.DataFrame(np.zeros([3, 4]))
         """
         添加缺失列
         """
@@ -208,19 +211,34 @@ def run_etl(env, weeksize, day_of_week):
         else:
             # pass
             print("auto fill enabled , ncol is: %s" %(10 - len(df0.columns)))
-            somelen = 10 - len(df0.columns)
-            df_zero = pd.DataFrame(np.zeros([df0.shape[0], somelen]))
-            df0 = pd.concat([df_zero, df0], axis = 1)
-            df0.columns = list(
-                np.repeat(0, (somelen -1))
-                ) + list(df0.columns[0:(scan_len)]) + ['received_date','sku']
+            # somelen = 10 - len(df0.columns)
+            # df_zero = pd.DataFrame(np.zeros([df0.shape[0], somelen]))
+            # df0 = pd.concat([df_zero, df0], axis = 1)
+            # df0.columns = list(
+            #     np.repeat(0, (somelen))
+            #     ) + list(
+            #         df0.columns[0:(scan_len)]
+            #         ) + ['received_date','sku']
+            names = df0.columns[0:2]
+            df_zero = pd.DataFrame(df0.iloc[:,0])
+            df_zero2 = pd.DataFrame()
+            # df_zero. copy()
+            for i in range(0,somelen):
+                df_zero2 = pd.concat([df_zero2, df_zero], axis = 1)
 
-        df0.head()
+            print(df_zero2.head())
+
+            df0 = pd.concat([df_zero2, df0], axis = 1)
+            print(df0.head())
+            df0.columns = list(range(11,11 + somelen)) + list(names) + ['received_date','sku']
+        scan_len = 8
+        print(df0.head())
         df0 = df0.sort_values(['sku', 'received_date'])
         df0['mark'] = 0
-        
         df0['mark'] = df0['mark'].where(
-            df0.iloc[:, 0: (scan_len - 1)].isna().all(axis = 1) == False, 'new')
+            df0.iloc[:,  (scan_len - 1)].isna() == False, 'new')
+            # df0.iloc[:, 0: (scan_len - 1)].isna().all(axis = 1) == False, 'new')
+            # 
         df0['mark'] = df0['mark'].where(
             ~df0.iloc[:,(scan_len - 1)].isna() , 'clear')
         # fill na~
@@ -232,8 +250,8 @@ def run_etl(env, weeksize, day_of_week):
 
         # may lock
         df0['mark'] = df0['mark'].where(df0.iloc[:, 0:scan_len].fillna(0).nunique(axis = 1) > 1, 'may_lock')
-        print("===============================snap!done for : %s=================================" %df0['ou_code'].unique())
-
+        print("===========================snap!done for : %s=============================" %df0['ou_code'].unique())
+        return df0
     # print("===============================mid_function_check=================================")
     def err_part():
         """
@@ -241,8 +259,9 @@ def run_etl(env, weeksize, day_of_week):
         err 中干掉了 new 干掉了maylock 
         """
         global df0
-        print("===============================err_part!start: %s================================="%str(df0.shape))
-        
+
+        print("============================err_part!start: %s============================"%str(df0.shape))
+        scan_len = 8
         df_err = df0[df0['mark'] != 'new']
         # 补充可能被锁的标记
         # df_err['mark'] = df_err['mark'].where(df_err.iloc[:, 0:8].fillna(0).nunique(axis = 1) > 1, 'may_lock')
@@ -322,7 +341,7 @@ def run_etl(env, weeksize, day_of_week):
 
         print("============================boseInv before snap==============================")
         print(bose_inv.info())
-        snapshot()
+        df0 = snapshot()
         print(df0.info())
         df_err = err_part()
 
@@ -337,13 +356,14 @@ def run_etl(env, weeksize, day_of_week):
     print("===============================~loop_done~=================================")
     print(out_df.shape)
     print("===============================~'out_df.columns'~=================================")
-
-    out_df['start_week'] = out_df.columns[0]
+    scan_len = 8
+    out_df['start_week'] = fridays[0]
+    out_df['end_week'] = fridays[-1]
     out_df.columns = [
         str(j) + '_' + str(i) for i,j in enumerate(np.repeat('week', scan_len))
         ] + [
         'received_date','sku','mark','lock_codes',
-        'wms_warehouse_id','fifo_fefo','location','ou_code', 'start_of_week'
+        'wms_warehouse_id','fifo_fefo','location','ou_code', 'start_of_week', 'end_of_week'
     ]
     out_df['inc_day'] = df9['inc_day'].max()
     out_df['location'] = [','.join(i) for i in out_df['location'] ]
@@ -374,8 +394,8 @@ def run_etl(env, weeksize, day_of_week):
             'location',
             'ou_code',
             'start_of_week',
+            'end_of_week',
             'inc_day',]]
-
     df[['week_0',
             'week_1',
             'week_2',
@@ -391,6 +411,9 @@ def run_etl(env, weeksize, day_of_week):
             'week_5',
             'week_6',
             'week_7',]].astype(float)
+
+    df = df[df['week_6'] != 0]
+    
     df[['received_date',
             'sku',
             'mark',
@@ -400,6 +423,7 @@ def run_etl(env, weeksize, day_of_week):
             'location',
             'ou_code',
             'start_of_week',
+            'end_of_week',
             'inc_day',]] = df[['received_date',
             'sku',
             'mark',
@@ -409,6 +433,7 @@ def run_etl(env, weeksize, day_of_week):
             'location',
             'ou_code',
             'start_of_week',
+            'end_of_week',
             'inc_day',]].astype(str)
 
         
@@ -431,12 +456,18 @@ def run_etl(env, weeksize, day_of_week):
    
 
     merge_table = "dm_dsc_ads.ads_dsc_wh_fifo_alert_wi"
-    if env == 'dev':
-        merge_table = 'tmp_dsc_dws.dws_dsc_wh_fifo_alert_wi'
+    if weeksize == 2:
+        if env == 'dev':
+            merge_table = 'tmp_dsc_dws.dws_dsc_wh_fifo_alert_wi'
+        else:
+            pass
     else:
-        pass
-    print('看一下merge_table from john')
-    print(merge_table)
+        if env == 'dev':
+            merge_table = 'tmp_dsc_dws.dws_dsc_wh_fifo_alert_wi'
+        else:
+            pass
+        print('看一下merge_table from john')
+        print(merge_table)
     
     inc_df = spark.sql("""select * from df""")
     print("===============================merge_table--%s================================="%merge_table)
@@ -453,16 +484,19 @@ def run_etl(env, weeksize, day_of_week):
 
 def main():
     args = argparse.ArgumentParser() 
-    args.add_argument("--env", help="dev environment or prod environment", default=["dev"], nargs="*")
-    args.add_argument("--weeksize", help="how many weeks are we scanning, this is unmutable!!!", default=["8"], nargs="*")
-    args.add_argument("--day_of_week", help="day_of_week, in picking our days", default=["W-FRI"], nargs="*")
+    args.add_argument(
+        "--env", help="dev environment or prod environment", default=["dev"], nargs="*")
+    args.add_argument(
+        "--weeksize", help="how many weeks are we scanning, this is unmutable!!!", default=["8"], nargs="*")
+    args.add_argument(
+        "--day_of_week", help="day_of_week, in picking our days", default=["W-THU"], nargs="*")
 
     args_parse = args.parse_args() 
     args_parse
     env = args_parse.env [0]
     weeksize = args_parse.weeksize[0]
     day_of_week = args_parse.day_of_week [0]
-    print(env, day_of_week)
+    print(env, day_of_week,weeksize, "arguements_passed")
     run_etl(env, weeksize, day_of_week)
 
     

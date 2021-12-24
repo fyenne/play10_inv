@@ -132,3 +132,15 @@ sku, ou_code, fifo_fefo, wms_warehouse_id
 order by 	
 sku, ou_code
  
+
+,week_6
+,week_7
+,received_date
+,sku
+,mark
+,lock_codes
+,wms_warehouse_id
+,fifo_fefo
+,location
+,ou_code
+,start_of_week
