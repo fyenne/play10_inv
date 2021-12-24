@@ -191,15 +191,31 @@ def run_etl(env, weeksize, day_of_week):
         df0 = pd.DataFrame()
         for i in bose_inv['sku_code'].unique():
             df_out = bose_inv[bose_inv['sku_code'] == i]\
-                .pivot_table(columns=['inc_day'], index = 'recived_date', values=['qty']).reset_index()
+                .pivot_table(columns='inc_day', index = 'recived_date', values='qty').reset_index()
             df_out['sku_code'] = i
             df0 = pd.concat([df0, df_out], axis = 0)
         try:
             df0.columns = df0.columns.get_level_values(level=1)
         except:
             pass
+
+        if re.search('(\d+)', str(df0.columns[0])) == None:
+            df0.columns = ['received_date', df0.columns[1],  df0.columns[2], 'sku']
+            df0 = df0[[df0.columns[1], df0.columns[2], 'received_date', 'sku']]
+            print('hah, mutated')
+        else:
+            print('ha. no need mutations')
+            pass
+
+        # if test.columns[0]  == '':
+        #     test.columns = ['received_date', test.columns[1],  test.columns[2], 'sku']
+        #     test = test[[test.columns[1], test.columns[2], 'received_date', 'sku']]
+        # else:
+        #     pass
         print("snap_df0_column before in snap", df0.columns, "len of df0 in snap", (df0.shape))
         df0 = df0.reset_index(drop = True) # 4 
+        print(df0.head())
+
         # df0 = pd.DataFrame(np.zeros([3, 4]))
         """
         添加缺失列
@@ -341,6 +357,7 @@ def run_etl(env, weeksize, day_of_week):
 
         print("============================boseInv before snap==============================")
         print(bose_inv.info())
+
         df0 = snapshot()
         print(df0.info())
         df_err = err_part()
@@ -455,7 +472,7 @@ def run_etl(env, weeksize, day_of_week):
     """
    
 
-    merge_table = "dm_dsc_ads.ads_dsc_wh_fifo_alert_wi"
+    merge_table = "dsc_dws.dws_dsc_wh_fifo_alert_wi"
     if weeksize == 2:
         if env == 'dev':
             merge_table = 'tmp_dsc_dws.dws_dsc_wh_fifo_alert_wi'
