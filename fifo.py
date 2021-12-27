@@ -81,8 +81,6 @@ def run_etl(env, weeksize, day_of_week):
         pd.Series(df.columns).str.lower().str.findall('date|time').apply(len)>0
         ]
     df[time_cols] = df[time_cols].apply(lambda x: x.str.slice(0,10))
-    
-    df
     df9 = df
     
     print("==================================read_table================================")
@@ -453,8 +451,7 @@ def run_etl(env, weeksize, day_of_week):
             'end_of_week',
             'inc_day',]].astype(str)
 
-        
-
+    df['weeksize'] = weeksize
 
     """
     to bdp
@@ -478,12 +475,12 @@ def run_etl(env, weeksize, day_of_week):
             merge_table = 'tmp_dsc_dws.dws_dsc_wh_fifo_alert_wi'
         else:
             pass
-    else:
+    else: # weeksize == 8
         if env == 'dev':
             merge_table = 'tmp_dsc_dws.dws_dsc_wh_fifo_alert_wi'
         else:
             pass
-        print('看一下merge_table from john')
+        print('看一下merge_table <>')
         print(merge_table)
     
     inc_df = spark.sql("""select * from df""")
@@ -494,7 +491,7 @@ def run_etl(env, weeksize, day_of_week):
     spark.sql("""set spark.hadoop.hive.exec.dynamic.partition.mode=nonstrict""")
     # (table_name, df, pk_cols, order_cols, partition_cols=None):
     merge_data = MergeDFToTable(merge_table, inc_df, \
-        "received_date, sku, ou_code, inc_day", "inc_day", partition_cols="inc_day")
+        "received_date, sku, ou_code, inc_day", "inc_day", partition_cols=["inc_day", "weeksize"])
     merge_data.merge()
 
 
