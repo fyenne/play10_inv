@@ -10,6 +10,7 @@ from MergeDataFrameToTable import MergeDFToTable
 spark = SparkSession.builder.enableHiveSupport().getOrCreate() 
 import sys 
 import os
+from datetime import date 
 
 def run_etl(env, day_of_week):
     # path = './cxm/' 
@@ -25,7 +26,8 @@ def run_etl(env, day_of_week):
 
     fridays = tuple([
         i for i in list(
-            allsundays(2021)[allsundays(2021) < date.today().strftime('%Y%m%d')][-int(8):])])
+            allsundays(2021)[allsundays(2021) < date.today().strftime('%Y%m%d')][-int(1):])])[0]
+
     """
     offline version
     """
@@ -107,3 +109,22 @@ def run_etl(env, day_of_week):
      
 
 
+
+
+def main():
+    args = argparse.ArgumentParser() 
+    args.add_argument(
+        "--env", help="dev environment or prod environment", default=["dev"], nargs="*")
+    args.add_argument(
+        "--day_of_week", help="day_of_week, in picking our days", default=["W-FRI"], nargs="*")
+
+    args_parse = args.parse_args() 
+    args_parse
+    env = args_parse.env [0] 
+    day_of_week = args_parse.day_of_week [0]
+    print(env, day_of_week, "arguements_passed")
+    run_etl(env, day_of_week)
+
+    
+if __name__ == '__main__':
+    main()
