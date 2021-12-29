@@ -219,8 +219,8 @@ def run_etl(env, weeksize, day_of_week):
         添加缺失列
         """
         if len(df0.columns) == 10:
-            print(list(df0.columns[0:scan_len]))
-            df0.columns = list(df0.columns[0:scan_len]) + ['received_date','sku']
+            print(list(df0.columns[0:8]))
+            df0.columns = list(df0.columns[0:8]) + ['received_date','sku']
             print("normal process in snap::%s"%str(df0.shape))
         else:
             # pass
@@ -284,7 +284,10 @@ def run_etl(env, weeksize, day_of_week):
         # print("===============================scan_len_err_function--%s================================="%scan_len)
         # print(df_err.iloc[:,0:scan_len])
         df_err['change'] = df_err.iloc[:,0:scan_len].diff(axis = 1).sum(axis = 1)
-        shift = df_err.groupby(['sku', 'wms_warehouse_id']).shift(1) 
+        if str(df_err['ou_code'].unique()) in {'HPPXXWHWDS', 'HPPXXSHMGS'}:
+            shift = df_err.groupby(['sku', 'wms_warehouse_id', 'lock_code']).shift(1) 
+        else:
+            shift = df_err.groupby(['sku', 'wms_warehouse_id']).shift(1) 
         shift = shift[['mark','change']]
         shift.columns = ['lag_mark', 'lag_change']
         shift['lag_mark'] = shift['lag_mark'].where(~shift['lag_mark'].isna(), 'clear')
@@ -411,6 +414,7 @@ def run_etl(env, weeksize, day_of_week):
             'start_of_week',
             'end_of_week',
             'inc_day',]]
+            
     df[['week_0',
             'week_1',
             'week_2',
@@ -427,7 +431,6 @@ def run_etl(env, weeksize, day_of_week):
             'week_6',
             'week_7',]].astype(float)
 
-    df = df[df['week_6'] != 0]
     
     df[['received_date',
             'sku',
@@ -451,8 +454,13 @@ def run_etl(env, weeksize, day_of_week):
             'end_of_week',
             'inc_day',]].astype(str)
 
-    df['weeksize'] = weeksize
-
+    df['weeksize'] = str(weeksize)
+    if weeksize == '2':
+        df = df[df['week_6'] != 0]
+    else:
+        pass
+    print(df.head())
+    
     """
     to bdp
     """
@@ -469,30 +477,32 @@ def run_etl(env, weeksize, day_of_week):
     """
    
 
-    merge_table = "dsc_dws.dws_dsc_wh_fifo_alert_wi"
-    if weeksize == 2:
-        if env == 'dev':
-            merge_table = 'tmp_dsc_dws.dws_dsc_wh_fifo_alert_wi'
-        else:
-            pass
-    else: # weeksize == 8
-        if env == 'dev':
-            merge_table = 'tmp_dsc_dws.dws_dsc_wh_fifo_alert_wi'
-        else:
-            pass
-        print('看一下merge_table <>')
-        print(merge_table)
-    
+    merge_table = 'dsc_wh_fifo_alert_wi'
+
+    if env == 'dev':
+        merge_table = 'tmp_dsc_dws.dws_' + merge_table
+    else:
+        merge_table = "dm_dsc_ads.ads_" + merge_table
+        
+    # dm_dsc_ads.ads_dsc_wh_fifo_alert_wi
+    print('看一下merge_table <>')
+    print(merge_table)
+
     inc_df = spark.sql("""select * from df""")
+    print(inc_df)
     print("===============================merge_table--%s================================="%merge_table)
     
     print('{note:=>50}'.format(note=merge_table) + '{note:=>50}'.format(note=''))
 
     spark.sql("""set spark.hadoop.hive.exec.dynamic.partition.mode=nonstrict""")
-    # (table_name, df, pk_cols, order_cols, partition_cols=None):
+    # (table_name, df, 
+    # pk_cols, order_cols, partition_cols=None):
     merge_data = MergeDFToTable(merge_table, inc_df, \
-        "received_date, sku, ou_code, inc_day", "inc_day", partition_cols=["inc_day", "weeksize"])
+        "received_date, sku, ou_code, inc_day", "inc_day", partition_cols="inc_day, weeksize")
     merge_data.merge()
+
+ 
+    
 
 
 
