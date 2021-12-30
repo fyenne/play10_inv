@@ -8,11 +8,7 @@ ZEBRASHALS' )
 AND inc_day IN """+ str(fridays) + """
 AND usage_flag
 
-
-
-
-show create table dsc_dws.dws_qty_working_hour_labeling_sum_df
-
+ 
 
 drop table if exists tmp_dsc_dws.dws_dsc_wh_fifo_alert_wi
 
@@ -46,20 +42,20 @@ OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'
 
 
 CREATE TABLE `dm_dsc_ads.ads_dsc_wh_fifo_alert_wi_sum`(
-`ou_code` string comment '',
-`wms_warehouse_id` string comment '',
-`fifo_fefo` string comment '',
-`start_of_week` string comment '',
-`end_of_week` string comment '',
-`sku` string comment '',
-`old_remain_amt` string comment '',
-`old_remain_location` string comment '',
-`old_remain_date` string comment '',
-`old_remain_lock_code` string comment '',
-`new_export_amt` string comment '',
-`new_export_location` string comment '',
-`new_export_date` string comment '',
-`new_export_lock_codes` string comment ''
+`ou_code` string comment 'oucode',
+`wms_warehouse_id` string comment '仓库名',
+`fifo_fefo` string comment '是fifo还是fefo',
+`start_of_week` string comment '开始的周日期',
+`end_of_week` string comment '结束的周日期',
+`sku` string comment 'sku',
+`old_remain_amt` double comment '应该发的货/ 但是没发/ 剩余数量',
+`old_remain_location` string comment '应该发的货/ 但是没发/ 库位',
+`old_remain_date` string comment '应该发的货/ 但是没发/ inbound日期或者expiration日期',
+`old_remain_lock_code` string comment '应该发的货/ 但是没发/ 锁码',
+`new_export_amt` double comment '不应该发的货/ 但发了/ 剩余数量',
+`new_export_location` string comment '不应该发的货/ 但发了/ 库位',
+`new_export_date` string comment '不应该发的货/ 但发了/ inbound日期或者expiration日期',
+`new_export_lock_codes` string comment '不应该发的货/ 但发了/ 锁码'
 ) COMMENT '周增,fifo异常管理 2week 的summary表.' 
 PARTITIONED BY (`inc_day` string COMMENT '日分区') 
 ROW FORMAT SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe' 
@@ -67,8 +63,6 @@ STORED AS
 INPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat' 
 OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'
 
-
- 
 
 
 	'DIADOXMNSS',  

@@ -477,12 +477,11 @@ def run_etl(env, weeksize, day_of_week):
     """
    
 
-    merge_table = 'dsc_wh_fifo_alert_wi'
-
+    merge_table = 'dm_dsc_ads.ads_dsc_wh_fifo_alert_wi_dtl'
     if env == 'dev':
-        merge_table = 'tmp_dsc_dws.dws_' + merge_table
+        merge_table = 'tmp_' + merge_table
     else:
-        merge_table = "dm_dsc_ads.ads_" + merge_table
+        pass
         
     # dm_dsc_ads.ads_dsc_wh_fifo_alert_wi
     print('看一下merge_table <>')
@@ -513,7 +512,7 @@ def main():
     args.add_argument(
         "--weeksize", help="how many weeks are we scanning, this is unmutable!!!", default=["8"], nargs="*")
     args.add_argument(
-        "--day_of_week", help="day_of_week, in picking our days", default=["W-THU"], nargs="*")
+        "--day_of_week", help="day_of_week, in picking our days", default=["W-FRI"], nargs="*")
 
     args_parse = args.parse_args() 
     args_parse
