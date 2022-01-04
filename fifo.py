@@ -34,6 +34,7 @@ import sys
 # df[time_cols] = df[time_cols].apply(lambda x: x.str.slice(0,10))
 # df9 = df
 # weeksize = '8'
+# day_of_week = 'W-FRI'
 
 def run_etl(env, weeksize, day_of_week):
     # path = './cxm/' 
@@ -62,7 +63,7 @@ def run_etl(env, weeksize, day_of_week):
     # 4 个站点. 
     sql = """
     select * from  dsc_dwd.dwd_wh_dsc_inventory_dtl_di 
-    where src = 'scale'
+    where (src = 'scale'
     and ou_code in (
     'HPPXXWHWDS', 
     'MICHETCTGS',
@@ -70,9 +71,14 @@ def run_etl(env, weeksize, day_of_week):
     'HPPXXSHMGS',
     'MICHESHXCS'
     )
+    or src = 'wmos')
+
     and inc_day in """+ str(fridays) + """
+    and ou_code != ''
     and usage_flag = '1'
     """
+
+   
     print(sql)
 
     df = spark.sql(sql).select("*").toPandas()
@@ -101,7 +107,7 @@ def run_etl(env, weeksize, day_of_week):
         所有类型的qty都要加起来哦
         只选择有多个收货日期的货物
         """
-        global code, df, bose_inv, df0
+        global code, df, bose_inv, df0 
         df0 = pd.DataFrame()
         df = df9
         df = df[df['ou_code'].astype(str) == ou_code]
@@ -139,9 +145,19 @@ def run_etl(env, weeksize, day_of_week):
             df2 = fifo_fefo(df2, 'fefo')
             df = pd.concat([df1, df2], axis = 0)
             code = '(blocked)'
+            # wmos
+        else:
+            
+            # make a date
+            make_day = str(int(date.today().strftime('%Y')) + 50)+'-09-09'
+            df1 = df[df['expiration_date'] == '9999-09-09'] # fifo @# scale datetime. need redefine when other wms sys/..
+            df2 = df[df['expiration_date'] <= make_day] # fefo
+            df1 = fifo_fefo(df1, 'fifo')
+            df2 = fifo_fefo(df2, 'fefo')
+            df = pd.concat([df1, df2], axis = 0)
+            # code = '(\w)' # 不知道为什么这种方法不对, 但没时间调试了.
+            code = "(PP|PV|BL|BA|QH|QX|LC|DW|PO|PT|DT|LW|PZ|PS)"
 
-        elif ou_code == 'SIEMESUEPS':
-            pass
 
         # print(code)
         
@@ -338,13 +354,6 @@ def run_etl(env, weeksize, day_of_week):
 
         return bose_err_list
     
-    
-    # def printt(df):
-    #     print('{note:=>50}'.format(note="shape") + '{note:=>50}'.format(note=df.shape))
-    #     print(df.info())
-
-    # # df.columns
-    
     out_df = pd.DataFrame()
     for ou_code0 in df9['ou_code'].unique():
 
@@ -359,17 +368,20 @@ def run_etl(env, weeksize, day_of_week):
         print("============================boseInv before snap==============================")
         print(bose_inv.info())
 
-        df0 = snapshot()
-        print(df0.info())
-        df_err = err_part()
+        try: 
+            df0 = snapshot()
+            print(df0.info())
+            df_err = err_part()
 
-        view = output(df_err)
-        bose_err_list = ou_level_lock_codes(code)
-        bose_definite_wrong = check(bose_err_list)
-        print("===============================~definite_wrong~=================================")
-        print(bose_definite_wrong.info())
-        out_df = pd.concat([out_df, bose_definite_wrong], axis = 0)
-        print(out_df.shape)
+            view = output(df_err)
+            bose_err_list = ou_level_lock_codes(code)
+            bose_definite_wrong = check(bose_err_list)
+            print("===============================~definite_wrong~=================================")
+            print(bose_definite_wrong.info())
+            out_df = pd.concat([out_df, bose_definite_wrong], axis = 0)
+            print(out_df.shape)
+        except: 
+            print('None data for code ::: %s :::'%ou_code0)
  
     print("===============================~loop_done~=================================")
     print(out_df.shape)
