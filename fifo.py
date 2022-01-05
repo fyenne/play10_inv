@@ -61,7 +61,7 @@ def run_etl(env, weeksize, day_of_week):
     
         # 最近 8周, 每个周五. 这里直接用today是可以的, 因为只会找不等于的.,
     # 4 个站点. 
-    
+
     sql = """
     select * from  dsc_dwd.dwd_wh_dsc_inventory_dtl_di 
     where (src = 'scale'
@@ -427,7 +427,10 @@ def run_etl(env, weeksize, day_of_week):
         'wms_warehouse_id','fifo_fefo','location','ou_code', 'start_of_week', 'end_of_week'
     ]
     out_df['inc_day'] = df9['inc_day'].max()
-    out_df['location'] = [','.join(i) for i in out_df['location'] ]
+    try:
+        out_df['location'] = [','.join(i) for i in out_df['location']]
+    except:
+        pass
     out_df['received_date'] = out_df['received_date'].astype(str)
 
 
