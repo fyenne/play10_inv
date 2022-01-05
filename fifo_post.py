@@ -26,7 +26,7 @@ def run_etl(env, day_of_week):
 
     fridays = tuple([
         i for i in list(
-            allsundays(2021)[allsundays(2021) < date.today().strftime('%Y%m%d')][-int(1):])])[0]
+            allsundays(2021)[allsundays(2021) < date.today().strftim('%Y%m%d')][-int(1):])])[0]
 
     """
     offline version
@@ -60,12 +60,12 @@ def run_etl(env, day_of_week):
 
 
         fefo['flag'] = fefo.groupby(
-            ['sku', 'ou_code', 'wms_warehouse_id',   'fifo_fefo', 'start_of_week', 'end_of_week']
+            ['sku', 'ou_code', 'wms_warehouse_id', 'fifo_fefo', 'start_of_week', 'end_of_week']
             )['sku'].transform('count')
         fefo = fefo[fefo['flag'] != 1]
 
         fefo['flag'] = fefo.groupby(
-            ['sku', 'ou_code', 'wms_warehouse_id',   'fifo_fefo', 'start_of_week', 'end_of_week']
+            ['sku', 'ou_code', 'wms_warehouse_id', 'fifo_fefo', 'start_of_week', 'end_of_week']
             )['out_amt'].transform('min')
         fefo = fefo[fefo['flag'] > 0]
         fefo.tail(8)

@@ -61,6 +61,7 @@ def run_etl(env, weeksize, day_of_week):
     
         # 最近 8周, 每个周五. 这里直接用today是可以的, 因为只会找不等于的.,
     # 4 个站点. 
+    
     sql = """
     select * from  dsc_dwd.dwd_wh_dsc_inventory_dtl_di 
     where (src = 'scale'
@@ -75,18 +76,32 @@ def run_etl(env, weeksize, day_of_week):
 
     and inc_day in """+ str(fridays) + """
     and ou_code != ''
-    and usage_flag = '1'
+    and usage_flag = '1' 
+
     """
 
+    # sql = """
+    # select * from  dsc_dwd.dwd_wh_dsc_inventory_dtl_di 
+    # where ou_code in ('ASIC1SSW1S', 'LUCKITJXQS')
+    # and inc_day in """+ str(fridays) + """
+    # and ou_code != ''
+    # and usage_flag = '1' 
+    # """
    
     print(sql)
 
     df = spark.sql(sql).select("*").toPandas()
+    # df.cache()
     df = df.dropna(how = 'all', axis =1)
     time_cols = pd.Series(df.columns)[
         pd.Series(df.columns).str.lower().str.findall('date|time').apply(len)>0
         ]
     df[time_cols] = df[time_cols].apply(lambda x: x.str.slice(0,10))
+
+    df = df[df['expiration_date'].fillna('9999-09-09').str.match('(^\d{4})')]
+    # ASIC1SSW1S
+    print(df.shape)
+
     df9 = df
     
     print("==================================read_table================================")
@@ -111,6 +126,8 @@ def run_etl(env, weeksize, day_of_week):
         df0 = pd.DataFrame()
         df = df9
         df = df[df['ou_code'].astype(str) == ou_code]
+        # df = df['expiration_date'].str.match('(^\d{4})')
+
 
         def fifo_fefo(df, type):
             if type == 'fifo':
@@ -138,7 +155,7 @@ def run_etl(env, weeksize, day_of_week):
             df = fifo_fefo(df, 'fefo')
 
         elif ou_code == 'COSTASHHTS':
-            # COSTASHHTS expiration_date 没有空值.
+            # COSTASHHTS expiration_date 没有空值. 
             df1 = df[df['expiration_date'] == '4712-12-31'] # fifo @# scale datetime. need redefine when other wms sys/..
             df2 = df[df['expiration_date'] != '4712-12-31'] # fefo
             df1 = fifo_fefo(df1, 'fifo')
@@ -147,14 +164,19 @@ def run_etl(env, weeksize, day_of_week):
             code = '(blocked)'
             # wmos
         else:
-            
             # make a date
-            make_day = str(int(date.today().strftime('%Y')) + 50)+'-09-09'
-            df1 = df[df['expiration_date'] == '9999-09-09'] # fifo @# scale datetime. need redefine when other wms sys/..
+            make_day = str(int(date.today().strftime('%Y')) + 60)+'-09-09'
+            df1 = df[df['expiration_date'].str.slice(0,4) == '9999'] # fifo @# wmos datetime.
             df2 = df[df['expiration_date'] <= make_day] # fefo
-            df1 = fifo_fefo(df1, 'fifo')
-            df2 = fifo_fefo(df2, 'fefo')
-            df = pd.concat([df1, df2], axis = 0)
+            df3 = df[df['expiration_date'].isna()] # fefo
+            try:
+                df1 = fifo_fefo(df1, 'fifo')
+                df3 = fifo_fefo(df3, 'fifo')
+                df2 = fifo_fefo(df2, 'fefo')
+            except:
+                df = df['expiration_date'].str.match('(^\d{4})')
+
+            df = pd.concat([df1, df3, df2], axis = 0)
             # code = '(\w)' # 不知道为什么这种方法不对, 但没时间调试了.
             # code = "(PP|PV|BL|BA|QH|QX|LC|DW|PO|PT|DT|LW|PZ|PS)"
             code = "(BL|QH|QX|IN)"
@@ -165,7 +187,7 @@ def run_etl(env, weeksize, day_of_week):
         
         
         df = df[['wms_company_name', 'wms_warehouse_id','sku_code', 'sku_name', 'sku_desc', 'location',\
-            'lock_codes', 'on_hand_qty', 'in_transit_qty','allocated_qty', 'shelf_days', 
+            'lock_codes', 'on_hand_qty', 'in_transit_qty','allocated_qty', 
             'recived_date','usage_flag', 'fifo_fefo','inc_day', 'ou_code']]
         df['qty'] = df['on_hand_qty']
         
