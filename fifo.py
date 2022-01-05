@@ -156,7 +156,9 @@ def run_etl(env, weeksize, day_of_week):
             df2 = fifo_fefo(df2, 'fefo')
             df = pd.concat([df1, df2], axis = 0)
             # code = '(\w)' # 不知道为什么这种方法不对, 但没时间调试了.
-            code = "(PP|PV|BL|BA|QH|QX|LC|DW|PO|PT|DT|LW|PZ|PS)"
+            # code = "(PP|PV|BL|BA|QH|QX|LC|DW|PO|PT|DT|LW|PZ|PS)"
+            code = "(BL|QH|QX|IN)"
+
 
 
         # print(code)
@@ -179,7 +181,7 @@ def run_etl(env, weeksize, day_of_week):
         {
             'qty':'sum',
             'location': set
-            # ? 这里如果group by location德华会有问题, 列数,miasjdijaisjd
+            # ? 这里如果group by location的话会有问题, 列数,miasjdijaisjd
         }
         ).sort_values(['sku_code', 'recived_date']).reset_index()
         # 只选择有多个收货日期的货物
@@ -265,12 +267,17 @@ def run_etl(env, weeksize, day_of_week):
         print(df0.head())
         df0 = df0.sort_values(['sku', 'received_date'])
         df0['mark'] = 0
-        df0['mark'] = df0['mark'].where(
-            df0.iloc[:,  (scan_len - 1)].isna() == False, 'new')
-            # df0.iloc[:, 0: (scan_len - 1)].isna().all(axis = 1) == False, 'new')
-            # 
-        df0['mark'] = df0['mark'].where(
-            ~df0.iloc[:,(scan_len - 1)].isna() , 'clear')
+        # df0['mark'] = df0['mark'].where(
+        #     df0.iloc[:,  (scan_len - 1)].isna() == False, 'new')
+        #     # df0.iloc[:, 0: (scan_len - 1)].isna().all(axis = 1) == False, 'new')
+        #     # 
+        # df0['mark'] = df0['mark'].where(
+        #     ~df0.iloc[:,(scan_len - 1)].isna() , 'clear')
+        # 两周同为空的情况不存在, 则
+        # 前七周为空 --> new
+        # 第八周为空 --> clear
+        df0['mark'] = np.where(df0.iloc[:, 0:7].isna().sum(axis = 1) == 7, 'new', df0['mark'])
+        df0['mark'] = np.where(df0.iloc[:, 7].isna() == True, 'clear', df0['mark'])
         # fill na~
         df0 = df0.fillna(0)
         bose_inv = bose_inv.rename({'sku_code':'sku', 'recived_date':'received_date'}, axis = 1)\
@@ -300,6 +307,7 @@ def run_etl(env, weeksize, day_of_week):
         # print("===============================scan_len_err_function--%s================================="%scan_len)
         # print(df_err.iloc[:,0:scan_len])
         df_err['change'] = df_err.iloc[:,0:scan_len].diff(axis = 1).sum(axis = 1)
+        # hp 不同lockcode的货物不能比较.
         if str(df_err['ou_code'].unique()) in {'HPPXXWHWDS', 'HPPXXSHMGS'}:
             shift = df_err.groupby(['sku', 'wms_warehouse_id', 'lock_code']).shift(1) 
         else:
@@ -322,23 +330,16 @@ def run_etl(env, weeksize, day_of_week):
 
         return df0[df0['sku'].isin(dishes)]
 
-    def check(sku):
-        global df0
-        a = df0[df0['sku'].isin(sku)].sort_values(['sku','received_date'])
-        print("===============================check!done::%s================================="%str(a.shape))
-
-        return a 
-
     def ou_level_lock_codes(lock_code_to_eliminate):
         """
         正则. lock_code 需要被排除的, 依赖view表格. 
         """ 
         print("===========================ou_level_lock_codes!start!code :: %s============================="%str(code))
-        select_none_lock  = pd.DataFrame(
-            view.groupby('sku')[
-                'mark'
-                ].apply(list).astype(str).str.match('.+may')
-            ).reset_index()
+        # select_none_lock  = pd.DataFrame(
+        #     view.groupby('sku')[
+        #         'mark'
+        #         ].apply(list).astype(str).str.match('.+may')
+        #     ).reset_index()
 
         select_none_lock2 = pd.DataFrame(
             view.groupby('sku')[
@@ -346,14 +347,24 @@ def run_etl(env, weeksize, day_of_week):
                 ].apply(list).astype(str).str.match('.+'+lock_code_to_eliminate)
             ).reset_index()
         # 去重    
-        bose_err_list = set(select_none_lock[~select_none_lock['mark']]['sku'].unique())
+        # 2022.01.04 原先对"貌似"被锁的货物也进行了删除, 现在对他们进行保留操作.
+        # bose_err_list = set(select_none_lock[~select_none_lock['mark']]['sku'].unique())
+        # bose_err_list = set(select_none_lock['sku'].unique())
         bose_err_list2 = list(select_none_lock2[~select_none_lock2['lock_codes']]['sku'].unique())
-        bose_err_list = list(bose_err_list.intersection(bose_err_list2))
-        bose_err_list = list(set(bose_err_list))
+        # bose_err_list = list(bose_err_list.intersection(bose_err_list2))
+        bose_err_list = list(set(bose_err_list2))
         print("===========================ou_level_lock_codes!done :: %s==============================="%str(bose_err_list))
 
         return bose_err_list
     
+    def check(sku):
+        global df0
+        a = df0[df0['sku'].isin(sku)].sort_values(['sku','received_date'])
+        print("===============================check!done::%s================================="%str(a.shape))
+
+        return a 
+
+
     out_df = pd.DataFrame()
     for ou_code0 in df9['ou_code'].unique():
 
@@ -361,11 +372,9 @@ def run_etl(env, weeksize, day_of_week):
         code = load_data(ou_code0)[1]
         
         print('{note:=>50}'.format(note=ou_code0) + '{note:=>50}'.format(note=''))
-        print("===============================this_code: %s================================="%ou_code0)
-        print("===============================this_code_lock_code: %s================================="%code)
-
-
-        print("============================boseInv before snap==============================")
+        # print("===============================this_code: %s================================="%ou_code0)
+        print("===========================this_code_lock_code: %s============================"%code)
+        # print("============================boseInv before snap==============================")
         print(bose_inv.info())
 
         try: 
@@ -376,7 +385,7 @@ def run_etl(env, weeksize, day_of_week):
             view = output(df_err)
             bose_err_list = ou_level_lock_codes(code)
             bose_definite_wrong = check(bose_err_list)
-            print("===============================~definite_wrong~=================================")
+            print("===========================~definite_wrong~=============================")
             print(bose_definite_wrong.info())
             out_df = pd.concat([out_df, bose_definite_wrong], axis = 0)
             print(out_df.shape)
