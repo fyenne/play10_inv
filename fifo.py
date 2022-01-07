@@ -36,7 +36,7 @@ import sys
 # weeksize = '8'
 # day_of_week = 'W-FRI'
 
-def run_etl(env, weeksize, day_of_week):
+def run_etl(env, weeksize, day_of_week, wmos_lock_code):
     # path = './cxm/' 
     print("python version here:", sys.version, '\t') 
     print("=================================sysVersion%s================================"%env)
@@ -100,6 +100,8 @@ def run_etl(env, weeksize, day_of_week):
 
     df = df[df['expiration_date'].fillna('9999-09-09').str.match('(^\d{4})')]
     # ASIC1SSW1S
+    # 免得在后边groupby 的时候被drop na
+    df['lock_codes'] = df['lock_codes']. fillna('Available')
     print(df.shape)
 
     df9 = df
@@ -126,6 +128,7 @@ def run_etl(env, weeksize, day_of_week):
         df0 = pd.DataFrame()
         df = df9
         df = df[df['ou_code'].astype(str) == ou_code]
+        
         # df = df['expiration_date'].str.match('(^\d{4})')
 
 
@@ -179,7 +182,7 @@ def run_etl(env, weeksize, day_of_week):
             df = pd.concat([df1, df3, df2], axis = 0)
             # code = '(\w)' # 不知道为什么这种方法不对, 但没时间调试了.
             # code = "(PP|PV|BL|BA|QH|QX|LC|DW|PO|PT|DT|LW|PZ|PS)"
-            code = "(BL|QH|QX|IN)"
+            code = wmos_lock_code
 
 
 
@@ -559,14 +562,18 @@ def main():
         "--weeksize", help="how many weeks are we scanning, this is unmutable!!!", default=["8"], nargs="*")
     args.add_argument(
         "--day_of_week", help="day_of_week, in picking our days", default=["W-FRI"], nargs="*")
+    args.add_argument(
+        "--wmos_lock_code", help="wmos_lock_code", default=["(BL|QH|QX|IN)"], nargs="*")
 
     args_parse = args.parse_args() 
     args_parse
     env = args_parse.env [0]
     weeksize = args_parse.weeksize[0]
     day_of_week = args_parse.day_of_week [0]
+    wmos_lock_code = args_parse.wmos_lock_code [0]
+
     print(env, day_of_week,weeksize, "arguements_passed")
-    run_etl(env, weeksize, day_of_week)
+    run_etl(env, weeksize, day_of_week, wmos_lock_code)
 
     
 if __name__ == '__main__':
