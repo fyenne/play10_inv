@@ -402,20 +402,20 @@ def run_etl(env, weeksize, day_of_week, wmos_lock_code):
         # print("============================boseInv before snap==============================")
         print(bose_inv.info())
 
-        try: 
-            df0 = snapshot()
-            print(df0.info())
-            df_err = err_part()
+        # try: 
+        df0 = snapshot()
+        print(df0.info())
+        df_err = err_part()
 
-            view = output(df_err)
-            bose_err_list = ou_level_lock_codes(code)
-            bose_definite_wrong = check(bose_err_list)
-            print("===========================~definite_wrong~=============================")
-            print(bose_definite_wrong.info())
-            out_df = pd.concat([out_df, bose_definite_wrong], axis = 0)
-            print(out_df.shape)
-        except: 
-            print('None data for code ::: %s :::'%ou_code0)
+        view = output(df_err)
+        bose_err_list = ou_level_lock_codes(code)
+        bose_definite_wrong = check(bose_err_list)
+        print("===========================~definite_wrong~=============================")
+        print(bose_definite_wrong.info())
+        out_df = pd.concat([out_df, bose_definite_wrong], axis = 0)
+        print(out_df.shape)
+        # except: 
+        #     print('None data for code ::: %s :::'%ou_code0)
  
     print("===============================~loop_done~=================================")
     print(out_df.shape)
