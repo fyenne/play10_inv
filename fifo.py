@@ -72,7 +72,7 @@ def run_etl(env, weeksize, day_of_week, wmos_lock_code):
     'HPPXXSHMGS',
     'MICHESHXCS'
     )
-    or src = 'wmos')
+    or (src = 'wmos' and ou_code != 'ASIC1SSW1S' ))
 
     and inc_day in """+ str(fridays) + """
     and ou_code != ''
@@ -101,7 +101,6 @@ def run_etl(env, weeksize, day_of_week, wmos_lock_code):
     df = df[df['expiration_date'].fillna('9999-09-09').str.match('(^\d{4})')]
     # ASIC1SSW1S
     # 免得在后边groupby 的时候被drop na
-    df['lock_codes'] = df['lock_codes']. fillna('Available')
     print(df.shape)
 
     df9 = df
@@ -189,19 +188,20 @@ def run_etl(env, weeksize, day_of_week, wmos_lock_code):
         # print(code)
         
         
-        df = df[['wms_company_name', 'wms_warehouse_id','sku_code', 'sku_name', 'sku_desc', 'location',\
+        df = df[['wms_company_id', 'wms_warehouse_id','sku_code', 'sku_name', 'sku_desc', 'location',\
             'lock_codes', 'on_hand_qty', 'in_transit_qty','allocated_qty', 
             'recived_date','usage_flag', 'fifo_fefo','inc_day', 'ou_code']]
         df['qty'] = df['on_hand_qty']
-        
+        df['lock_codes'] = df['lock_codes'].fillna('Available')
+        df['wms_warehouse_id'] = df['wms_warehouse_id'].fillna('warehouse')      
         
         # 没有重复的 目前看....aaa
         print("===============================oucode :: %s================================="%df['ou_code'].unique())
-        print(df['on_hand_qty'].describe())
-
+        print(df.isna().sum())
+        
         df = df.sort_values(['sku_code', 'recived_date']).groupby(
             ['recived_date', 'sku_code', 'lock_codes','inc_day', 'wms_warehouse_id', 'fifo_fefo'],
-            # dropna = False
+            # dropna = False # bdp version unsupported.
             ).agg(
         {
             'qty':'sum',
@@ -220,6 +220,7 @@ def run_etl(env, weeksize, day_of_week, wmos_lock_code):
         bose_inv = filter0.merge(df, on = ['sku_code'], how = 'inner')\
             .sort_values(['recived_date','sku_code', 'inc_day'])
         bose_inv['ou_code'] = ou_code
+        print('{note:=>50}'.format(note='head of bose_inv') + '{note:=>50}'.format(note=''))
         print(bose_inv.head())
         return bose_inv, code
     
@@ -392,30 +393,28 @@ def run_etl(env, weeksize, day_of_week, wmos_lock_code):
 
     out_df = pd.DataFrame()
     for ou_code0 in df9['ou_code'].unique():
-
+        print('{note:=>40}'.format(note=ou_code0) + '{note:=>40}'.format(note='NEW_LOOP'))
         bose_inv = load_data(ou_code0)[0]
         code = load_data(ou_code0)[1]
-        
-        print('{note:=>50}'.format(note=ou_code0) + '{note:=>50}'.format(note=''))
         # print("===============================this_code: %s================================="%ou_code0)
         print("===========================this_code_lock_code: %s============================"%code)
         # print("============================boseInv before snap==============================")
         print(bose_inv.info())
 
-        # try: 
-        df0 = snapshot()
-        print(df0.info())
-        df_err = err_part()
+        try: 
+            df0 = snapshot()
+            print(df0.info())
+            df_err = err_part()
 
-        view = output(df_err)
-        bose_err_list = ou_level_lock_codes(code)
-        bose_definite_wrong = check(bose_err_list)
-        print("===========================~definite_wrong~=============================")
-        print(bose_definite_wrong.info())
-        out_df = pd.concat([out_df, bose_definite_wrong], axis = 0)
-        print(out_df.shape)
-        # except: 
-        #     print('None data for code ::: %s :::'%ou_code0)
+            view = output(df_err)
+            bose_err_list = ou_level_lock_codes(code)
+            bose_definite_wrong = check(bose_err_list)
+            print("===========================~definite_wrong~=============================")
+            print(bose_definite_wrong.info())
+            out_df = pd.concat([out_df, bose_definite_wrong], axis = 0)
+            print(out_df.shape)
+        except: 
+            print('None data for code ::: %s :::'%ou_code0)
  
     print("===============================~loop_done~=================================")
     print(out_df.shape)
@@ -563,14 +562,14 @@ def main():
     args.add_argument(
         "--day_of_week", help="day_of_week, in picking our days", default=["W-FRI"], nargs="*")
     args.add_argument(
-        "--wmos_lock_code", help="wmos_lock_code", default=["(BL|QH|QX|IN)"], nargs="*")
+        "--wmos_lock_code", help="wmos_lock_code", default=["(PP|PV|BL|BA|QH|QX|LC|DW|PO|PT|DT|LW|PZ|PS)"], nargs="*")
 
     args_parse = args.parse_args() 
     args_parse
     env = args_parse.env [0]
     weeksize = args_parse.weeksize[0]
     day_of_week = args_parse.day_of_week [0]
-    wmos_lock_code = args_parse.wmos_lock_code [0]
+    wmos_lock_code = args_parse.wmos_lock_code[0]
 
     print(env, day_of_week,weeksize, "arguements_passed")
     run_etl(env, weeksize, day_of_week, wmos_lock_code)
