@@ -48,6 +48,9 @@ def run_etl(env, weeksize, day_of_week, wmos_lock_code):
     
     def allsundays(year):
         """
+        Cannot generate summary
+        :param year: The year to start the series
+        :return: A pandas Series of the dates of the Sundays in the year.
         十年, 
         """
         return pd.Series(pd.date_range(start=str(year), end=str(year+10), 
@@ -98,7 +101,7 @@ def run_etl(env, weeksize, day_of_week, wmos_lock_code):
         ]
     df[time_cols] = df[time_cols].apply(lambda x: x.str.slice(0,10))
 
-    df = df[df['expiration_date'].fillna('9999-09-09').str.match('(^\d{4})')]
+    df = df[df['expiration_date'].fillna('4712-12-31').str.match('(^\d{4})')]
     # ASIC1SSW1S
     # 免得在后边groupby 的时候被drop na
     print(df.shape)
@@ -168,7 +171,7 @@ def run_etl(env, weeksize, day_of_week, wmos_lock_code):
         else:
             # make a date
             make_day = str(int(date.today().strftime('%Y')) + 60)+'-09-09'
-            df1 = df[df['expiration_date'].str.slice(0,4) == '9999'] # fifo @# wmos datetime.
+            df1 = df[df['expiration_date'].str.slice(0,4) == '4712'] # fifo @# wmos datetime.
             df2 = df[df['expiration_date'] <= make_day] # fefo
             df3 = df[df['expiration_date'].isna()] # fefo
             try:
@@ -206,7 +209,7 @@ def run_etl(env, weeksize, day_of_week, wmos_lock_code):
         {
             'qty':'sum',
             'location': set
-            # ? 这里如果group by location的话会有问题, 列数,miasjdijaisjd
+            # ? 这里如果group by location的话会有问题, 列数, 
         }
         ).sort_values(['sku_code', 'recived_date']).reset_index()
         # 只选择有多个收货日期的货物
